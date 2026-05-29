@@ -36,7 +36,7 @@ export default function Layout() {
         </main>
         <footer className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white">
           <div className="max-w-7xl mx-auto px-4 py-3 text-center text-[11px] text-slate-400">
-            &copy; 2026 CrystalLog. Open source under MIT License.
+            State Key Laboratory of Chemical Biology, Shanghai Institute of Organic Chemistry, Chinese Academy of Sciences &nbsp;|&nbsp; &copy; 2026 TT Lab. All Rights Reserved. &nbsp;|&nbsp; Website developed by Liuzhen
           </div>
         </footer>
       </div>

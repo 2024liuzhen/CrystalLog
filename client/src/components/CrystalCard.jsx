@@ -1,4 +1,4 @@
-export default function CrystalCard({ crystal, selected, onToggle, onEdit, onDelete }) {
+export default function CrystalCard({ crystal, selected, onToggle, onEdit, onDelete, onExport }) {
   const imageUrl = crystal.image_path
     ? (crystal.image_path.startsWith('http') ? crystal.image_path : `/${crystal.image_path}`)
     : null;
@@ -19,6 +19,9 @@ export default function CrystalCard({ crystal, selected, onToggle, onEdit, onDel
         )}
         {/* Action buttons */}
         <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={e => { e.stopPropagation(); onExport(crystal); }} className="bg-white/90 p-1.5 rounded-lg text-slate-600 hover:text-green-600 shadow-sm" title="导出PNG">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
           <button onClick={e => { e.stopPropagation(); onEdit(crystal); }} className="bg-white/90 p-1.5 rounded-lg text-slate-600 hover:text-blue-600 shadow-sm" title="编辑">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>

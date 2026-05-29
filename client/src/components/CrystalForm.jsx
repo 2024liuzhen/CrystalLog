@@ -78,7 +78,7 @@ export default function CrystalForm({ crystal, kits, onClose, onSaved }) {
         protein_vol: Number(form.protein_vol),
         reservoir_vol_drop: Number(form.reservoir_vol_drop),
         reservoir_vol_total: Number(form.reservoir_vol_total),
-        notes: form.notes || undefined,
+        notes: form.notes,
       };
 
       let saved;

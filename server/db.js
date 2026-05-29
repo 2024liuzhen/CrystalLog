@@ -116,12 +116,12 @@ export async function initDb() {
     )
   `);
 
-  // Seed admin user (password from env or random)
+  // Seed admin user
   const admin = get('SELECT id FROM users WHERE username = ?', ['admin']);
   if (!admin) {
-    const pw = process.env.ADMIN_PASSWORD || Math.random().toString(36).slice(2, 10);
+    const pw = process.env.ADMIN_PASSWORD || 'admin123';
     const hash = bcrypt.hashSync(pw, 10);
-    run('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)', ['admin', hash, 'Admin', 'admin']);
+    run('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)', ['admin', hash, '管理员', 'admin']);
     console.log(`Admin user created. Username: admin, Password: ${pw}`);
   }
 

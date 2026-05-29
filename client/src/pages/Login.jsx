@@ -46,7 +46,7 @@ export default function Login() {
           </button>
         </form>
         <div className="mt-6 pt-4 border-t border-slate-100 text-center text-[10px] text-slate-400">
-          &copy; 2026 CrystalLog. Open source under MIT License.
+          State Key Laboratory of Chemical Biology, Shanghai Institute of Organic Chemistry, Chinese Academy of Sciences &nbsp;|&nbsp; &copy; 2026 TT Lab. All Rights Reserved. &nbsp;|&nbsp; Website developed by Liuzhen
         </div>
       </div>
     </div>

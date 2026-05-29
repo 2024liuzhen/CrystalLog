@@ -76,49 +76,62 @@ export default function Dashboard() {
     });
   };
 
+  const downloadCanvas = (canvas, filename) => {
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  };
+
+  const handleExportSingle = async (crystal) => {
+    const canvas = await drawCrystalCard(crystal);
+    downloadCanvas(canvas, `${crystal.protein_name}_${crystal.well_id || 'N' + crystal.id}.png`);
+    notify('已导出');
+  };
+
   const handleExportComposite = async () => {
     const selected = crystals.filter(c => selectedIds.has(c.id));
     if (selected.length === 0) return;
 
-    // Create composite canvas image
-    const cards = await Promise.all(selected.map(c => generateCardCanvas(c)));
-    const canvas = document.createElement('canvas');
-    const padding = 40;
-    const cols = Math.min(selected.length, 3);
-    const rows = Math.ceil(selected.length / cols);
-    const cardW = 800, gap = 30;
-    let cardH = 500;
+    if (selected.length === 1) {
+      return handleExportSingle(selected[0]);
+    }
 
-    canvas.width = padding * 2 + cols * cardW + (cols - 1) * gap;
-    canvas.height = padding * 2 + rows * cardH + (rows - 1) * gap + 60;
+    const cards = await Promise.all(selected.map(c => drawCrystalCard(c)));
+    const pad = 30, gap = 20;
+    const cardW = 800, titleH = 90, footerH = 20;
+    const cardH = cards[0]?.height || 500;
+    const cols = Math.min(selected.length, 2);
+    const rows = Math.ceil(selected.length / cols);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = pad * 2 + cols * cardW + (cols - 1) * gap;
+    canvas.height = titleH + pad + rows * (cardH + gap) + footerH;
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = '#e2e8f0'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, canvas.width, 80);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 36px sans-serif';
-    ctx.textAlign = 'center'; ctx.fillText('CrystalLog Report', canvas.width / 2, 52);
+    // Background
+    ctx.fillStyle = '#f1f5f9'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Title bar
+    ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, canvas.width, titleH);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 32px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`CrystalLog Report - ${new Date().toLocaleDateString()}`, canvas.width / 2, 55);
 
-    // 由于 Canvas 生成卡片太复杂，这里直接导出为 JSON 或 HTML table
-    // 改为下载多个单独的图片或使用简单的网格布局
+    cards.forEach((card, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const x = pad + col * (cardW + gap);
+      const y = titleH + pad + row * (cardH + gap);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.roundRect(x - 3, y - 3, cardW + 6, cardH + 6, 12); ctx.fill();
+      ctx.shadowColor = 'rgba(0,0,0,0.08)'; ctx.shadowBlur = 10;
+      ctx.fill(); ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      ctx.drawImage(card, x, y);
+    });
 
-    // Simple approach: download as JSON with export info
-    const json = selected.map(c => ({
-      protein: c.protein_name,
-      owner: c.owner_name,
-      kit: c.kit_name,
-      well: c.well_id,
-      condition: c.condition_text,
-      method: c.method,
-      notes: c.notes,
-      date: c.created_at,
-    }));
-
-    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `crystal_export_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCanvas(canvas, `CrystalLog_export_${new Date().toISOString().split('T')[0]}.png`);
     notify(`已导出 ${selected.length} 条记录`);
   };
 
@@ -161,7 +174,7 @@ export default function Dashboard() {
                 <div className="h-px bg-slate-200 flex-1"></div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {items.map(c => <CrystalCard key={c.id} crystal={c} selected={selectedIds.has(c.id)} onToggle={toggleSelect} onEdit={handleEdit} onDelete={handleDelete} />)}
+                {items.map(c => <CrystalCard key={c.id} crystal={c} selected={selectedIds.has(c.id)} onToggle={toggleSelect} onEdit={handleEdit} onDelete={handleDelete} onExport={handleExportSingle} />)}
               </div>
             </div>
           ))}
@@ -169,7 +182,7 @@ export default function Dashboard() {
       ) : (
         filtered.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map(c => <CrystalCard key={c.id} crystal={c} selected={selectedIds.has(c.id)} onToggle={toggleSelect} onEdit={handleEdit} onDelete={handleDelete} />)}
+            {filtered.map(c => <CrystalCard key={c.id} crystal={c} selected={selectedIds.has(c.id)} onToggle={toggleSelect} onEdit={handleEdit} onDelete={handleDelete} onExport={handleExportSingle} />)}
           </div>
         ) : (
           <div className="text-center py-20 text-slate-400">
@@ -199,86 +212,118 @@ export default function Dashboard() {
   );
 }
 
-// Helper: generate card canvas for export
-async function generateCardCanvas(crystal) {
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+async function drawCrystalCard(crystal) {
+  const w = 800, pad = 24;
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-  const w = 800, pad = 30;
-  canvas.width = w;
 
-  // Calculate height
-  let h = 250;
-  if (crystal.image_path) h += 300;
-  if (crystal.condition_text) h += Math.ceil(crystal.condition_text.length / 50) * 30;
-  canvas.height = h;
+  // Measure text to calculate height
+  let y = pad;
+  y += 72; // header
+  y += pad;
 
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, w, h);
+  // Image section
+  let imgHeight = 0;
+  if (crystal.image_path) { imgHeight = 260; y += imgHeight + pad; }
 
-  // Header
-  ctx.fillStyle = '#3b82f6';
-  ctx.beginPath();
-  ctx.roundRect(15, 15, w - 30, 80, 12);
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 28px sans-serif';
-  ctx.fillText(crystal.protein_name, 40, 50);
-  ctx.font = '16px sans-serif';
-  ctx.fillStyle = '#dbeafe';
-  ctx.fillText(`${new Date(crystal.created_at).toLocaleDateString()} | ${crystal.owner_name || ''}`, 40, 78);
+  // Kit & well
+  if (crystal.kit_name || crystal.well_id) y += 48;
 
-  let y = 120;
+  // Condition
+  let condLines = 0;
+  if (crystal.condition_text) {
+    ctx.font = '15px sans-serif';
+    const parts = crystal.condition_text.split('; ');
+    parts.forEach(p => { condLines += wrapText(ctx, p, w - pad * 2 - 15).length; });
+    y += condLines * 22 + 10;
+  }
+
+  // Notes
+  if (crystal.notes) { ctx.font = '13px sans-serif'; y += 24 + wrapText(ctx, crystal.notes, w - pad * 2).length * 20; }
+
+  // Method & date footer
+  y += 12 + 24;
+
+  canvas.width = w; canvas.height = y + pad;
+
+  // Start drawing
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(0, 0, w, canvas.height, 16); ctx.fill();
+
+  y = pad;
+
+  // Header with protein name
+  ctx.fillStyle = '#3b82f6'; ctx.beginPath(); ctx.roundRect(pad, y, w - pad * 2, 72, 12); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px sans-serif';
+  ctx.fillText(crystal.protein_name, pad + 20, y + 32);
+  ctx.font = '13px sans-serif'; ctx.fillStyle = '#bfdbfe';
+  const meta = `${new Date(crystal.created_at).toLocaleDateString()} | ${crystal.owner_name || ''} | ${crystal.method || 'Sitting Drop'}`;
+  ctx.fillText(meta, pad + 20, y + 54);
+  y += 72 + pad;
 
   // Image
   if (crystal.image_path) {
     try {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = resolve;
-        img.src = crystal.image_path.startsWith('http') ? crystal.image_path : `/${crystal.image_path}`;
-      });
+      await new Promise((res) => { img.onload = res; img.onerror = res; img.src = (crystal.image_path.startsWith('http') ? '' : '/') + crystal.image_path; });
       if (img.width > 0) {
-        const iw = w - 60, ih = 250;
-        ctx.fillStyle = '#f1f5f9';
-        ctx.beginPath(); ctx.roundRect(pad, y, iw, ih, 8); ctx.fill();
-        ctx.drawImage(img, pad, y, iw, ih);
-        y += ih + 20;
+        ctx.fillStyle = '#f8fafc'; ctx.beginPath(); ctx.roundRect(pad, y, w - pad * 2, imgHeight, 10); ctx.fill();
+        ctx.drawImage(img, pad + 5, y + 5, w - pad * 2 - 10, imgHeight - 10);
+        y += imgHeight + pad;
       }
-    } catch {}
+    } catch { }
   }
 
-  // Kit & Well badge
+  // Kit & well badge
   if (crystal.kit_name || crystal.well_id) {
-    ctx.fillStyle = '#eff6ff';
-    ctx.beginPath(); ctx.roundRect(pad, y, w - 60, 44, 8); ctx.fill();
-    ctx.fillStyle = '#1e40af';
-    ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(`${crystal.kit_name || ''}  ${crystal.well_id || ''}`, pad + 15, y + 30);
-    y += 65;
+    ctx.fillStyle = '#eff6ff'; ctx.beginPath(); ctx.roundRect(pad, y, w - pad * 2, 40, 8); ctx.fill();
+    ctx.fillStyle = '#1e40af'; ctx.font = 'bold 15px sans-serif';
+    const badge = [crystal.kit_name, crystal.well_id].filter(Boolean).join('  ');
+    ctx.fillText(badge, pad + 15, y + 27);
+    y += 48;
   }
 
-  // Condition
+  // Condition lines
   if (crystal.condition_text) {
-    ctx.fillStyle = '#334155';
-    ctx.font = '17px sans-serif';
-    const words = crystal.condition_text.split('; ');
-    let lineY = y;
-    const maxW = w - 60;
-    for (const word of words) {
-      ctx.fillText(word, pad, lineY + 20);
-      lineY += 28;
-    }
-    y = lineY + 10;
+    ctx.fillStyle = '#475569'; ctx.font = '15px sans-serif';
+    const parts = crystal.condition_text.split('; ');
+    parts.forEach(part => {
+      const lines = wrapText(ctx, part, w - pad * 2 - 15);
+      lines.forEach(line => {
+        ctx.fillText(line, pad + 10, y + 18);
+        y += 22;
+      });
+    });
+    y += 10;
   }
 
   // Notes
   if (crystal.notes) {
-    ctx.fillStyle = '#d97706';
-    ctx.font = '15px sans-serif';
-    ctx.fillText(`备注: ${crystal.notes}`, pad, y + 16);
+    ctx.fillStyle = '#b45309'; ctx.font = '13px sans-serif';
+    ctx.fillText('备注: ' + crystal.notes, pad + 5, y + 18);
+    y += 30;
   }
+
+  // Footer line
+  y += 12;
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad + 10, y); ctx.lineTo(w - pad - 10, y); ctx.stroke();
+  y += 4;
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px sans-serif';
+  ctx.fillText(`CrystalLog  ·  ${new Date(crystal.created_at).toLocaleDateString()}`, pad + 10, y + 14);
 
   return canvas;
 }
