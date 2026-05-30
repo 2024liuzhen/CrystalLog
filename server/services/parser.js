@@ -124,6 +124,10 @@ function buildComponentGroups(schema) {
     if (ci >= 2 && schema[ci - 2].type === 'concentration' && schema[ci - 1].type === 'unit') {
       group.concCol = ci - 2;
       group.unitCol = ci - 1;
+    } else if (ci >= 2 && schema[ci - 2].type === 'concentration' && schema[ci - 1].type === 'ignore' && !schema[ci - 1]._raw) {
+      // Header has empty/Nan unit column (e.g. JCSG-plus format) — treat as unit
+      group.concCol = ci - 2;
+      group.unitCol = ci - 1;
     } else if (ci >= 1 && schema[ci - 1].type === 'unit') {
       group.unitCol = ci - 1;
       if (ci >= 2 && schema[ci - 2].type === 'concentration') group.concCol = ci - 2;
@@ -135,6 +139,7 @@ function buildComponentGroups(schema) {
     if (group.concCol === -1 && ci + 1 < schema.length && schema[ci + 1].type === 'concentration') {
       group.concCol = ci + 1;
       if (ci + 2 < schema.length && schema[ci + 2].type === 'unit') group.unitCol = ci + 2;
+      if (ci + 2 < schema.length && schema[ci + 2].type === 'ignore' && !schema[ci + 2]._raw) group.unitCol = ci + 2;
     }
 
     // For buffers, look for adjacent pH column (to the right)
@@ -362,19 +367,31 @@ function parseSingleKit(normalizedRows, headerIdx) {
 
     if (!standardWell) continue;
 
-    // Build condition string from all component groups
-    const allComponents = [];
-    const extractGroup = (g) => {
-      const comp = extractComponent(row, g);
-      if (comp) allComponents.push(comp);
+    // Build labelled condition components
+    const labelledComponents = [];
+
+    const extractLabeled = (items, typeName) => {
+      const extracted = [];
+      items.forEach(g => {
+        const comp = extractComponent(row, g);
+        if (comp) extracted.push(comp);
+      });
+      if (extracted.length === 0) return;
+      if (extracted.length === 1) {
+        labelledComponents.push(`[${typeName}] ${extracted[0]}`);
+      } else {
+        extracted.forEach((c, i) => {
+          labelledComponents.push(`[${typeName}${i + 1}] ${c}`);
+        });
+      }
     };
 
-    groups.salts.forEach(extractGroup);
-    groups.buffers.forEach(extractGroup);
-    groups.precipitants.forEach(extractGroup);
-    groups.additives.forEach(extractGroup);
+    extractLabeled(groups.salts, 'Salt');
+    extractLabeled(groups.buffers, 'Buffer');
+    extractLabeled(groups.precipitants, 'Precipitant');
+    extractLabeled(groups.additives, 'Additive');
 
-    const condStr = allComponents.join('; ');
+    const condStr = labelledComponents.join('; ');
     if (!condStr) continue;
 
     // Multi-row merge: append to existing condition for same well

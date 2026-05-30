@@ -125,6 +125,47 @@ export async function initDb() {
     console.log(`Admin user created. Username: admin, Password: ${pw}`);
   }
 
+  // Migrate old condition format to new labelled format
+  const oldCond = get("SELECT id FROM kit_conditions WHERE condition_text NOT LIKE '[%' LIMIT 1");
+  if (oldCond) {
+    console.log('Migrating old condition format to labelled format...');
+    const rows = all("SELECT id, condition_text FROM kit_conditions WHERE condition_text NOT LIKE '[%'");
+    for (const row of rows) {
+      const parts = row.condition_text.split('; ').filter(Boolean);
+      // Try to classify each part by content pattern
+      const klass = (p) => {
+        const lower = p.toLowerCase();
+        // pH suggests buffer
+        if (/ph\s*[\d.]+/.test(lower)) return 'Buffer';
+        // % suggests precipitant (PEG, MPD, etc.)
+        if (/%\s*(w\/v|v\/v|w\/v|%)/.test(lower) || /\bpeg\b/i.test(lower) || /\bmpd\b/i.test(lower)) return 'Precipitant';
+        // Metal or salt keywords
+        if (/\b(chloride|sulfate|nitrate|acetate|citrate|cacodylate|malate|phosphate|formate|bromide|iodide|fluoride|potassium|sodium|lithium|calcium|magnesium|zinc|ammonium|manganese|cesium|cobalt|nickel)\b/i.test(lower)) return 'Salt';
+        // Buffer keywords
+        if (/\b(tris|hepes|mes|ches|caps|bis-tris|imidazole|cacodylate|phosphate\/citrate|spg|sodium acetate|sodium citrate)\b/i.test(lower)) return 'Buffer';
+        return 'Additive';
+      };
+
+      const grouped = {};
+      parts.forEach(p => {
+        const type = klass(p);
+        if (!grouped[type]) grouped[type] = [];
+        grouped[type].push(p);
+      });
+
+      const labelled = [];
+      for (const [type, items] of Object.entries(grouped)) {
+        if (items.length === 1) {
+          labelled.push(`[${type}] ${items[0]}`);
+        } else {
+          items.forEach((c, i) => labelled.push(`[${type}${i + 1}] ${c}`));
+        }
+      }
+      run('UPDATE kit_conditions SET condition_text = ? WHERE id = ?', [labelled.join('; '), row.id]);
+    }
+    console.log(`Migrated ${rows.length} conditions`);
+  }
+
   console.log('Database initialized successfully');
 }
 

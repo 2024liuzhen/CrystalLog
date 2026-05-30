@@ -152,9 +152,30 @@ export default function CrystalForm({ crystal, kits, onClose, onSaved }) {
 
           {/* Condition auto-fill */}
           {conditionHint && (
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-800">
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm">
               <span className="font-semibold text-xs uppercase text-blue-500">自动匹配条件</span>
-              <p className="mt-1">{conditionHint}</p>
+              <div className="mt-2 space-y-1.5">
+                {conditionHint.split('; ').filter(Boolean).map((part, i) => {
+                  const m = part.match(/^\[(.+?)\]\s*(.*)$/);
+                  const label = m ? m[1] : '';
+                  const content = m ? m[2] : part;
+                  const colors = {
+                    Salt: 'text-orange-700 bg-orange-50 border-orange-200',
+                    Buffer: 'text-green-700 bg-green-50 border-green-200',
+                    Precipitant: 'text-purple-700 bg-purple-50 border-purple-200',
+                    Additive: 'text-cyan-700 bg-cyan-50 border-cyan-200',
+                  };
+                  const colorClass = Object.keys(colors).find(k => label.startsWith(k)) || '';
+                  return (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className={`text-[10px] px-2 py-0.5 rounded border shrink-0 mt-0.5 font-medium ${colors[colorClass] || 'text-slate-500 bg-slate-50 border-slate-200'}`}>
+                        {label}
+                      </span>
+                      <span className="text-blue-800">{content}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

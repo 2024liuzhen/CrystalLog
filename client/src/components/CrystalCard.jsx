@@ -50,7 +50,33 @@ export default function CrystalCard({ crystal, selected, onToggle, onEdit, onDel
         </div>
 
         {crystal.condition_text && (
-          <p className="text-xs text-slate-600 line-clamp-2 mb-2">{crystal.condition_text}</p>
+          <div className="text-xs mb-2 space-y-0.5">
+            {crystal.condition_text.split('; ').filter(Boolean).slice(0, 4).map((part, i) => {
+              const m = part.match(/^\[(.+?)\]\s*(.*)$/);
+              const label = m ? m[1] : '';
+              const content = m ? m[2] : part;
+              const colors = {
+                Salt: 'bg-orange-50 text-orange-700 border-orange-200',
+                Buffer: 'bg-green-50 text-green-700 border-green-200',
+                Precipitant: 'bg-purple-50 text-purple-700 border-purple-200',
+                Additive: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+              };
+              const colorClass = Object.keys(colors).find(k => label.startsWith(k)) || '';
+              return (
+                <div key={i} className="flex items-start gap-1.5">
+                  {label && (
+                    <span className={`text-[9px] px-1 py-px rounded border shrink-0 mt-0.5 leading-tight ${colors[colorClass] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                      {label}
+                    </span>
+                  )}
+                  <span className="text-slate-600 leading-tight">{content}</span>
+                </div>
+              );
+            })}
+            {crystal.condition_text.split('; ').filter(Boolean).length > 4 && (
+              <span className="text-slate-400">...更多</span>
+            )}
+          </div>
         )}
 
         {crystal.kit_name && (

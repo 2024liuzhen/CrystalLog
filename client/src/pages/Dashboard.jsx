@@ -296,16 +296,41 @@ async function drawCrystalCard(crystal) {
     y += 48;
   }
 
-  // Condition lines
+  // Condition lines with labelled badges
   if (crystal.condition_text) {
-    ctx.fillStyle = '#475569'; ctx.font = '15px sans-serif';
     const parts = crystal.condition_text.split('; ');
     parts.forEach(part => {
-      const lines = wrapText(ctx, part, w - pad * 2 - 15);
-      lines.forEach(line => {
-        ctx.fillText(line, pad + 10, y + 18);
-        y += 22;
-      });
+      const m = part.match(/^\[(.+?)\]\s*(.*)$/);
+      const label = m ? m[1] : '';
+      const content = m ? m[2] : part;
+
+      if (label) {
+        const labelColors = {
+          Salt: ['#fff7ed', '#ea580c'], Buffer: ['#f0fdf4', '#15803d'],
+          Precipitant: ['#faf5ff', '#7c3aed'], Additive: ['#ecfeff', '#0e7490'],
+        };
+        const tagKey = Object.keys(labelColors).find(k => label.startsWith(k)) || '';
+        const [bg, fg] = labelColors[tagKey] || ['#f8fafc', '#64748b'];
+
+        ctx.font = 'bold 10px sans-serif';
+        const tw = ctx.measureText(label).width + 10;
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.roundRect(pad + 12, y + 4, tw, 16, 3); ctx.fill();
+        ctx.fillStyle = fg; ctx.fillText(label, pad + 12 + 5, y + 16);
+        ctx.fillStyle = '#475569'; ctx.font = '15px sans-serif';
+        const lines = wrapText(ctx, content, w - pad * 2 - tw - 30);
+        lines.forEach(line => {
+          ctx.fillText(line, pad + 12 + tw + 10, y + 18);
+          y += 22;
+        });
+      } else {
+        ctx.fillStyle = '#475569'; ctx.font = '15px sans-serif';
+        const lines = wrapText(ctx, content, w - pad * 2 - 15);
+        lines.forEach(line => {
+          ctx.fillText(line, pad + 12, y + 18);
+          y += 22;
+        });
+      }
     });
     y += 10;
   }
